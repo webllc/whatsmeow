@@ -8,8 +8,9 @@
 package whatsmeow
 
 import (
-	"encoding/xml"
 	"bytes"
+	"encoding/xml"
+	"fmt"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/types"
 )
@@ -38,7 +39,122 @@ type OrderDetailType struct {
 			PriceStatus string `xml:"price_status"`
 		} `xml:"price"`
 	} `xml:"order"`
-} 
+}
+
+func (cli *Client) GetCatalog(jid types.JID, limit int) (*waBinary.Node, error) {
+	catalogNode, err := cli.sendIQ(infoQuery{
+		Namespace: "w:biz:catalog",
+		Type:      "get",
+		To:        types.ServerJID,
+		Content: []waBinary.Node{
+			{
+				Tag: "product_catalog",
+				Attrs: waBinary.Attrs{
+					"jid":               jid,
+					"allow_shop_source": true,
+				},
+				Content: []waBinary.Node{
+					{
+						Tag:     "limit",
+						Attrs:   nil,
+						Content: []byte("10"),
+					},
+					{
+						Tag:     "width",
+						Attrs:   nil,
+						Content: []byte("100"),
+					}, {
+						Tag:     "height",
+						Attrs:   nil,
+						Content: []byte("100"),
+					},
+				},
+			},
+		},
+	})
+	return catalogNode, err
+}
+
+
+
+func (cli *Client) AddProduct(product types.Product) (*waBinary.Node, error) {
+	var content [] waBinary.Node
+	content = append(content,
+		waBinary.Node{
+			Tag: "name",
+			Attrs: nil,
+			Content: []byte(product.Name),
+		})
+	content = append(content,
+		waBinary.Node{
+			Tag: "description",
+			Attrs: nil,
+			Content: []byte(product.Description),
+		})
+	content = append(content,
+		waBinary.Node{
+			Tag: "price",
+			Attrs: nil,
+			Content: []byte(product.Price),
+		})
+	content = append(content,
+		waBinary.Node{
+			Tag: "retailer_id",
+			Attrs: nil,
+			Content: []byte(product.RetailerId),
+		})
+
+	content = append(content,
+		waBinary.Node{
+			Tag: "currency",
+			Attrs: nil,
+			Content: []byte(product.Currency),
+		})
+
+	content = append(content,
+		waBinary.Node{
+			Tag: "media",
+			Attrs: nil,
+			Content: waBinary.Node{
+				Tag: "image",
+				Attrs: nil,
+				Content: []byte(product.Url),
+			},
+		})
+
+	query := infoQuery{
+		Namespace: "w:biz:catalog",
+		Type:      "set",
+		To:        types.ServerJID,
+		Content: []waBinary.Node{
+			{
+				Tag: "product_catalog_add",
+				Attrs: waBinary.Attrs{
+					"v": "1",
+				},
+				Content: []waBinary.Node{
+					{
+						Tag:     "product",
+						Attrs:   waBinary.Attrs{
+							"is_hidden": "false",
+						},
+						Content: content,
+					},
+				},
+			},
+		},
+	}
+
+
+	fmt.Printf("Query: %+v", query)
+	fmt.Println("")
+
+	productNode, err := cli.sendIQ(query)
+	return productNode, err
+}
+
+
+
 
 func (cli *Client) GetOrderDetails(orderId, tokenBase64 string) (*OrderDetailType, error) {
 
