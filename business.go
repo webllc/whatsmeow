@@ -41,7 +41,7 @@ type OrderDetailType struct {
 	} `xml:"order"`
 }
 
-func (cli *Client) GetCatalog(jid types.JID, limit int) (*waBinary.Node, error) {
+func (cli *Client) GetCatalog(jid types.JID, limit string) (*waBinary.Node, error) {
 	catalogNode, err := cli.sendIQ(infoQuery{
 		Namespace: "w:biz:catalog",
 		Type:      "get",
@@ -57,7 +57,7 @@ func (cli *Client) GetCatalog(jid types.JID, limit int) (*waBinary.Node, error) 
 					{
 						Tag:     "limit",
 						Attrs:   nil,
-						Content: []byte("10"),
+						Content: []byte(limit),
 					},
 					{
 						Tag:     "width",
