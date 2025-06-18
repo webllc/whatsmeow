@@ -161,6 +161,10 @@ func getSize(msg DownloadableMessage) int {
 	}
 }
 
+// ReturnDownloadWarnings controls whether the Download function returns non-fatal validation warnings.
+// Currently, these include [ErrFileLengthMismatch] and [ErrInvalidMediaSHA256].
+var ReturnDownloadWarnings = true
+
 // DownloadThumbnail downloads a thumbnail from a message.
 //
 // This is primarily intended for downloading link preview thumbnails, which are in ExtendedTextMessage:
@@ -257,8 +261,13 @@ func (cli *Client) DownloadMediaWithPath(
 		// TODO omit hash for unencrypted media?
 		mediaURL := fmt.Sprintf("https://%s%s&hash=%s&mms-type=%s&__wa-mms=", host.Hostname, directPath, base64.URLEncoding.EncodeToString(encFileHash), mmsType)
 		data, err = cli.downloadAndDecrypt(ctx, mediaURL, mediaKey, mediaType, fileLength, encFileHash, fileHash)
-		if err == nil || errors.Is(err, ErrFileLengthMismatch) || errors.Is(err, ErrInvalidMediaSHA256) ||
-			errors.Is(err, ErrMediaDownloadFailedWith403) || errors.Is(err, ErrMediaDownloadFailedWith404) || errors.Is(err, ErrMediaDownloadFailedWith410) {
+		if err == nil ||
+			errors.Is(err, ErrFileLengthMismatch) ||
+			errors.Is(err, ErrInvalidMediaSHA256) ||
+			errors.Is(err, ErrMediaDownloadFailedWith403) ||
+			errors.Is(err, ErrMediaDownloadFailedWith404) ||
+			errors.Is(err, ErrMediaDownloadFailedWith410) ||
+			errors.Is(err, context.Canceled) {
 			return
 		} else if i >= len(mediaConn.Hosts)-1 {
 			return nil, fmt.Errorf("failed to download media from last host: %w", err)
@@ -288,10 +297,12 @@ func (cli *Client) downloadAndDecrypt(
 
 	} else if data, err = cbcutil.Decrypt(cipherKey, iv, ciphertext); err != nil {
 		err = fmt.Errorf("failed to decrypt file: %w", err)
-	} else if fileLength >= 0 && len(data) != fileLength {
-		err = fmt.Errorf("%w: expected %d, got %d", ErrFileLengthMismatch, fileLength, len(data))
-	} else if len(fileSHA256) == 32 && sha256.Sum256(data) != *(*[32]byte)(fileSHA256) {
-		err = ErrInvalidMediaSHA256
+	} else if ReturnDownloadWarnings {
+		if fileLength >= 0 && len(data) != fileLength {
+			err = fmt.Errorf("%w: expected %d, got %d", ErrFileLengthMismatch, fileLength, len(data))
+		} else if len(fileSHA256) == 32 && sha256.Sum256(data) != *(*[32]byte)(fileSHA256) {
+			err = ErrInvalidMediaSHA256
+		}
 	}
 	return
 }
@@ -302,6 +313,9 @@ func getMediaKeys(mediaKey []byte, appInfo MediaType) (iv, cipherKey, macKey, re
 }
 
 func shouldRetryMediaDownload(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
 	var netErr net.Error
 	var httpErr DownloadHTTPError
 	return errors.As(err, &netErr) ||
