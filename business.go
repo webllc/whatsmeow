@@ -13,6 +13,7 @@ import (
 	"fmt"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/types"
+	"context"
 )
 
 
@@ -42,7 +43,7 @@ type OrderDetailType struct {
 }
 
 func (cli *Client) GetCatalog(jid types.JID, limit string) (*waBinary.Node, error) {
-	catalogNode, err := cli.sendIQ(infoQuery{
+	catalogNode, err := cli.sendIQ(context.Background(), infoQuery{
 		Namespace: "w:biz:catalog",
 		Type:      "get",
 		To:        types.ServerJID,
@@ -149,7 +150,7 @@ func (cli *Client) AddProduct(product types.Product) (*waBinary.Node, error) {
 	fmt.Printf("Query: %+v", query)
 	fmt.Println("")
 
-	productNode, err := cli.sendIQ(query)
+	productNode, err := cli.sendIQ(context.Background(), query)
 	return productNode, err
 }
 
@@ -158,11 +159,11 @@ func (cli *Client) AddProduct(product types.Product) (*waBinary.Node, error) {
 
 func (cli *Client) GetOrderDetails(orderId, tokenBase64 string) (*OrderDetailType, error) {
 
-	detailsNode, err := cli.sendIQ(infoQuery{
+	detailsNode, err := cli.sendIQ(context.Background(), infoQuery{
 		Namespace: "fb:thrift_iq",
 		Type:      "get",
 		To:        types.ServerJID,
-		SmaxId:    "5",
+		SMaxID:    "5",
 		Content: []waBinary.Node{
 			{
 				Tag: "order",
@@ -195,7 +196,7 @@ func (cli *Client) GetOrderDetails(orderId, tokenBase64 string) (*OrderDetailTyp
 			},
 		},
 	})
-	
+
 	OrderDetail := &OrderDetailType{}
 	d := xml.NewDecoder(bytes.NewReader([]byte(detailsNode.XMLString())))
 	d.Strict = false
